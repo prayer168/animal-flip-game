@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台灣外來種動物翻牌遊戲</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+      background: #f5f5f5;
+      color: #3e2723;
+    }
+
+    :root {
+      --primary:       #5d4037;
+      --primary-light: #8d6e63;
+      --primary-pale:  #efebe9;
+      --card-back:     #4e342e;
+      --text:          #3e2723;
+      --text-light:    #795548;
+      --radius: 10px;
+      --shadow: 0 3px 10px rgba(0,0,0,0.11);
+    }
+
+    /* ══ 難度選擇畫面 ══ */
+    #level-screen {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 100vh; padding: 24px; gap: 32px;
+    }
+
+    .level-title { text-align: center; }
+    .level-title .icon { font-size: 3rem; }
+    .level-title h1 { font-size: 1.5rem; color: var(--primary); margin-top: 10px; letter-spacing: 2px; }
+    .level-title p  { font-size: 0.88rem; color: var(--text-light); margin-top: 6px; }
+
+    .level-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+
+    .level-btn {
+      background: #fff; border: 2px solid transparent; border-radius: 16px;
+      padding: 24px 28px; width: 160px; text-align: center; cursor: pointer;
+      box-shadow: var(--shadow); transition: transform 0.18s, box-shadow 0.18s;
+      font-family: inherit;
+    }
+    .level-btn:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+    .level-btn.easy   { border-color: #81c784; }
+    .level-btn.medium { border-color: #ffb74d; }
+    .level-btn.hard   { border-color: #e57373; }
+    .level-btn .lv-emoji { font-size: 2rem; margin-bottom: 8px; }
+    .level-btn .lv-name  { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .level-btn.easy   .lv-name { color: #388e3c; }
+    .level-btn.medium .lv-name { color: #e65100; }
+    .level-btn.hard   .lv-name { color: #c62828; }
+    .level-btn .lv-desc { font-size: 0.75rem; color: var(--text-light); line-height: 1.5; }
+
+    /* ══ 遊戲畫面 ══ */
+    #game-screen {
+      display: none; flex-direction: column;
+      height: 100vh; overflow: hidden;
+    }
+
+    header {
+      flex-shrink: 0; background: var(--primary); color: #fff;
+      padding: 10px 16px; display: flex; align-items: center;
+      justify-content: space-between; gap: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    header h1 { font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; }
+
+    .level-badge { font-size: 0.68rem; padding: 2px 10px; border-radius: 20px; font-weight: 600; }
+    .level-badge.easy   { background: #c8e6c9; color: #2e7d32; }
+    .level-badge.medium { background: #ffe0b2; color: #e65100; }
+    .level-badge.hard   { background: #ffcdd2; color: #c62828; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .progress-bar-wrap { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; }
+    .progress-bar { width: 90px; height: 6px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: rgba(255,255,255,0.7); border-radius: 4px; transition: width 0.4s ease; width: 0%; }
+
+    .btn-change-level {
+      font-size: 0.7rem; background: rgba(255,255,255,0.15); color: #fff;
+      border: 1px solid rgba(255,255,255,0.4); border-radius: 20px;
+      padding: 3px 10px; cursor: pointer; font-family: inherit;
+      transition: background 0.2s; white-space: nowrap;
+    }
+    .btn-change-level:hover { background: rgba(255,255,255,0.28); }
+
+    .main-layout {
+      flex: 1; min-height: 0; display: flex;
+      gap: 14px; padding: 14px; overflow: hidden;
+    }
+
+    /* ── Card Grid ── */
+    .grid-section { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+    .card-grid { flex: 1; min-height: 0; display: grid; gap: 8px; }
+
+    .card-grid.grid-easy   { grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(2,1fr); }
+    .card-grid.grid-medium { grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(4,1fr); }
+    .card-grid.grid-hard   { grid-template-columns: repeat(6,1fr); grid-template-rows: repeat(4,1fr); }
+
+    .card { min-height: 0; cursor: pointer; perspective: 800px; user-select: none; }
+
+    .card-inner {
+      width: 100%; height: 100%; position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.42s cubic-bezier(.4,0,.2,1);
+      border-radius: var(--radius);
+    }
+    .card.flipped .card-inner,
+    .card.matched .card-inner { transform: rotateY(180deg); }
+
+    .card-face {
+      position: absolute; inset: 0; border-radius: var(--radius);
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      overflow: hidden; box-shadow: var(--shadow);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 8px 6px;
+    }
+
+    .card-back { background: var(--card-back); gap: 4px; }
+    .card-back .icon-back { font-size: 1.5rem; opacity: 0.65; }
+    .card-back .back-label { font-size: 0.52rem; color: rgba(255,255,255,0.4); letter-spacing: 1px; }
+
+    .card-front { transform: rotateY(180deg); text-align: center; gap: 5px; }
+
+    .name-card .card-front { background: var(--primary-pale); border: 2px solid var(--primary-light); }
+    .name-card .card-front .item-name { font-weight: 700; color: var(--primary); line-height: 1.3; }
+    .name-card .card-front .card-type-tag { background: var(--primary-light); color: #fff; border-radius: 20px; padding: 1px 7px; }
+
+    .clue-card .card-front { background: #fff; border: 2px solid #b0bec5; }
+    .clue-card .card-front .clue-text { color: var(--text); line-height: 1.55; text-align: center; }
+    .clue-card .card-front .card-type-tag { background: #78909c; color: #fff; border-radius: 20px; padding: 1px 7px; }
+
+    .card-type-tag { font-size: 0.54rem; }
+
+    .card-grid.grid-easy .item-name   { font-size: 1.05rem; }
+    .card-grid.grid-easy .clue-text   { font-size: 0.75rem; }
+    .card-grid.grid-medium .item-name { font-size: 0.82rem; }
+    .card-grid.grid-medium .clue-text { font-size: 0.62rem; }
+    .card-grid.grid-hard .item-name   { font-size: 0.72rem; }
+    .card-grid.grid-hard .clue-text   { font-size: 0.56rem; }
+
+    .card.matched .card-face { box-shadow: 0 0 0 3px var(--primary-light), var(--shadow); }
+
+    /* ── Info Panel ── */
+    .info-panel { width: 230px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .info-panel h2 { font-size: 0.88rem; color: var(--primary); margin-bottom: 10px; flex-shrink: 0; }
+
+    .info-placeholder {
+      background: #fff; border-radius: var(--radius);
+      padding: 18px 14px; text-align: center;
+      color: var(--text-light); font-size: 0.8rem; line-height: 1.8;
+      box-shadow: var(--shadow);
+    }
+
+    .matched-list {
+      flex: 1; min-height: 0; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 8px; padding-right: 2px;
+    }
+
+    .info-card {
+      background: #fff; border-radius: var(--radius);
+      padding: 10px 12px; box-shadow: var(--shadow);
+      animation: slideIn 0.3s ease; flex-shrink: 0;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .info-card .ic-name { font-size: 0.88rem; font-weight: 700; color: var(--primary); margin-bottom: 2px; }
+    .info-card .ic-tag  {
+      display: inline-block; background: var(--primary-pale); color: var(--primary);
+      border-radius: 4px; padding: 1px 6px; font-size: 0.63rem; margin-bottom: 3px;
+    }
+    .info-card .ic-body { font-size: 0.72rem; line-height: 1.6; color: var(--text); }
+
+    /* ── Completion Overlay ── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .overlay.show { display: flex; }
+
+    .completion-box {
+      background: #fff; border-radius: 20px; padding: 28px 24px;
+      max-width: 460px; width: 92%; text-align: center;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.25);
+      animation: popIn 0.4s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.8); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .completion-box .trophy   { font-size: 2.8rem; margin-bottom: 8px; }
+    .completion-box h2        { font-size: 1.3rem; color: var(--primary); margin-bottom: 5px; }
+    .completion-box .subtitle { font-size: 0.82rem; color: var(--text-light); margin-bottom: 18px; }
+
+    .completion-items {
+      display: flex; flex-wrap: wrap; gap: 7px;
+      justify-content: center; margin-bottom: 20px;
+    }
+    .completion-items span {
+      background: var(--primary-pale); color: var(--primary);
+      border-radius: 20px; padding: 3px 12px; font-size: 0.78rem; font-weight: 600;
+    }
+
+    .completion-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .btn-primary {
+      background: var(--primary); color: #fff; border: none;
+      border-radius: 50px; padding: 10px 26px; font-size: 0.92rem;
+      font-family: inherit; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--primary-light); }
+
+    .btn-secondary {
+      background: #fff; color: var(--primary); border: 2px solid var(--primary);
+      border-radius: 50px; padding: 10px 26px; font-size: 0.92rem;
+      font-family: inherit; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-secondary:hover { background: var(--primary-pale); }
+
+    /* ── Responsive ── */
+    @media (max-width: 860px) {
+      .main-layout { flex-direction: column; padding: 10px; gap: 10px; }
+      .info-panel { width: 100%; flex-direction: row; gap: 8px; flex-wrap: wrap; max-height: 140px; }
+      .info-panel h2 { display: none; }
+      .matched-list { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+      .info-card { min-width: 200px; }
+    }
+    @media (max-width: 540px) {
+      .card-grid.grid-easy   { grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(2,1fr); }
+      .card-grid.grid-medium { grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(4,1fr); }
+      .card-grid.grid-hard   { grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(6,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ 難度選擇畫面 ══ -->
+<div id="level-screen">
+  <div class="level-title">
+    <div class="icon">🦎</div>
+    <h1>台灣外來種動物翻牌遊戲</h1>
+    <p>選擇難度開始遊戲</p>
+  </div>
+  <div class="level-cards">
+    <button class="level-btn easy"   onclick="startGame(4)">
+      <div class="lv-emoji">🌱</div>
+      <div class="lv-name">初級</div>
+      <div class="lv-desc">4 對動物<br>共 8 張牌<br>適合入門</div>
+    </button>
+    <button class="level-btn medium" onclick="startGame(8)">
+      <div class="lv-emoji">⭐</div>
+      <div class="lv-name">中級</div>
+      <div class="lv-desc">8 對動物<br>共 16 張牌<br>挑戰記憶力</div>
+    </button>
+    <button class="level-btn hard"   onclick="startGame(12)">
+      <div class="lv-emoji">🏆</div>
+      <div class="lv-name">高級</div>
+      <div class="lv-desc">12 對動物<br>共 24 張牌<br>全面考驗</div>
+    </button>
+  </div>
+</div>
+
+<!-- ══ 遊戲畫面 ══ -->
+<div id="game-screen">
+  <header>
+    <div class="header-left">
+      <h1>🦎 台灣外來種動物翻牌遊戲</h1>
+      <span class="level-badge" id="level-badge"></span>
+    </div>
+    <div class="header-right">
+      <div class="progress-bar-wrap">
+        <span id="progress-text">0 / 0</span>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <button class="btn-change-level" onclick="goToLevelSelect()">換關卡</button>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    <section class="grid-section">
+      <div class="card-grid" id="card-grid"></div>
+    </section>
+    <aside class="info-panel">
+      <h2>🐾 動物小知識</h2>
+      <div id="info-area" style="display:contents">
+        <div class="info-placeholder">配對成功後<br>這裡會顯示<br>動物的詳細資訊</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ══ 完成 Overlay ══ -->
+<div class="overlay" id="overlay">
+  <div class="completion-box">
+    <div class="trophy">🏆</div>
+    <h2>恭喜完成！</h2>
+    <p class="subtitle" id="completion-subtitle"></p>
+    <div class="completion-items" id="completion-items"></div>
+    <div class="completion-btns">
+      <button class="btn-primary"   id="btn-restart">再玩一次</button>
+      <button class="btn-secondary" id="btn-level-select">換關卡</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ALL_ITEMS = [
+  {
+    id: 1, name: '緬甸蟒',
+    clue: '體型龐大的棄養寵物蛇，在野外成為頂級掠食者，威脅山區原生動物',
+    extra: '東南亞',
+    detail: '成體可超過 5 公尺，被棄養後在台灣山林繁殖，能吞食哺乳類和鳥類，是生態上極具破壞力的入侵者。'
+  },
+  {
+    id: 2, name: '紅耳龜',
+    clue: '頭側有明顯紅斑，俗稱巴西龜，是全球最常見的棄養寵物龜',
+    extra: '北美洲',
+    detail: '因外形可愛被大量飼養後棄養，現已遍布台灣各地水域，排擠原生的食蛇龜與柴棺龜，是世界百大惡性入侵種之一。'
+  },
+  {
+    id: 3, name: '琵琶鼠',
+    clue: '體表覆有堅硬骨板，幾乎沒有天敵，大量繁殖後堵塞河道並破壞魚卵',
+    extra: '南美洲',
+    detail: '原為水族觀賞魚，棄養後迅速佔領台灣各地溪流，大量破壞原生魚類的魚卵，使本土魚類數量急劇下降。'
+  },
+  {
+    id: 4, name: '福壽螺',
+    clue: '在水稻田大量繁殖，鮮粉紅色卵塊含毒素，是農業的重大威脅',
+    extra: '南美洲',
+    detail: '1979年引進作為食用螺，因市場失敗而大量棄養，現已入侵全台水田與溝渠，也是廣州管圓線蟲的重要中間宿主。'
+  },
+  {
+    id: 5, name: '美國牛蛙',
+    clue: '食性極廣，連蛇類都能吞食，大量壓縮台灣原生蛙類的生存空間',
+    extra: '北美洲',
+    detail: '體型遠大於台灣原生蛙類，掠食能力強，同時也是壺菌病的帶原者，對原生兩棲類族群造成雙重威脅。'
+  },
+  {
+    id: 6, name: '斑腿樹蛙',
+    clue: '繁殖期叫聲嘈雜，2006年在台灣首次發現，與原生樹蛙爭奪棲地',
+    extra: '中國南部',
+    detail: '適應力極強，能在各種環境繁殖，已快速擴散至全台低海拔地區，對台北樹蛙等原生物種造成嚴重競爭壓力。'
+  },
+  {
+    id: 7, name: '埃及聖䴉',
+    clue: '雜食性大型鳥類，大量破壞原生水鳥的巢位，威脅濕地生態',
+    extra: '非洲',
+    detail: '原為動物園展示鳥，逃逸後迅速在台灣繁殖，喜好搶佔鷺鷥科鳥類的群聚巢區，是台灣濕地生態的重要威脅。'
+  },
+  {
+    id: 8, name: '入侵紅火蟻',
+    clue: '叮咬劇痛，嚴重者可引發過敏性休克，攻擊人畜並大量消滅原生昆蟲',
+    extra: '南美洲',
+    detail: '2003年在台灣首次確認，具強烈攻擊性與毒性，每年造成數十億元農業損失，也大量消滅原生昆蟲及小型動物。'
+  },
+  {
+    id: 9, name: '白尾八哥',
+    clue: '競爭力極強，大量搶佔原生八哥的巢位，是台灣原生八哥族群萎縮的主因',
+    extra: '東南亞',
+    detail: '原為籠中鳥，逃逸後迅速佔領台灣城鄉，與原生八哥在食物和巢穴上競爭激烈，導致台灣八哥族群快速崩潰。'
+  },
+  {
+    id: 10, name: '沙氏變色蜥',
+    clue: '行動敏捷的小型蜥蜴，大量捕食昆蟲，與原生蜥蜴激烈競爭食物資源',
+    extra: '中美洲',
+    detail: '原產古巴及中美洲，1990年代在台灣建立族群，現已廣泛分布台灣西部平原，對原生蜥蜴和昆蟲生態造成衝擊。'
+  },
+  {
+    id: 11, name: '魚虎',
+    clue: '俗稱「魚中之虎」，兇猛掠食性魚類，能短暫在陸地存活，入侵後大量消滅原生魚類',
+    extra: '東南亞',
+    detail: '又名小盾鱧，掠食能力極強，入侵台灣水庫和河流後使原生魚類數量驟降，因耐旱特性使其幾乎無法根除。'
+  },
+  {
+    id: 12, name: '非洲大蝸牛',
+    clue: '全球最大的陸生蝸牛，食量驚人，破壞農作物並傳播寄生蟲給人類',
+    extra: '非洲東部',
+    detail: '1932年引進台灣作為食用，後大量棄養蔓延，是廣州管圓線蟲的主要傳播媒介，對農業和公共衛生均造成危害。'
+  }
+];
+
+const EXTRA_LABEL = '原產地';
+const NAME_TAG  = '動物名稱';
+const CLUE_TAG  = '動物特徵';
+
+const LEVEL_CONFIG = {
+  4:  { label: '初級', cls: 'easy',   gridClass: 'grid-easy',   emoji: '🌱' },
+  8:  { label: '中級', cls: 'medium', gridClass: 'grid-medium', emoji: '⭐' },
+  12: { label: '高級', cls: 'hard',   gridClass: 'grid-hard',   emoji: '🏆' }
+};
+
+let activeItems = [];
+let currentPairCount = 4;
+let cards = [], flippedCards = [], matchedCount = 0, isLocked = false;
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function startGame(pairCount) {
+  currentPairCount = pairCount;
+  const cfg = LEVEL_CONFIG[pairCount];
+  document.getElementById('level-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'flex';
+  const badge = document.getElementById('level-badge');
+  badge.textContent = cfg.emoji + ' ' + cfg.label;
+  badge.className = 'level-badge ' + cfg.cls;
+  document.getElementById('card-grid').className = 'card-grid ' + cfg.gridClass;
+  activeItems = shuffle([...ALL_ITEMS]).slice(0, pairCount);
+  initGame();
+}
+
+function goToLevelSelect() {
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('level-screen').style.display = 'flex';
+}
+
+function buildCards() {
+  const raw = [];
+  activeItems.forEach(p => {
+    raw.push({ type: 'name', itemId: p.id });
+    raw.push({ type: 'clue', itemId: p.id });
+  });
+  return shuffle(raw).map((c, i) => ({ ...c, index: i, isFlipped: false, isMatched: false }));
+}
+
+function renderGrid() {
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  cards.forEach(card => {
+    const item = activeItems.find(p => p.id === card.itemId);
+    const el = document.createElement('div');
+    el.className = 'card ' + (card.type === 'name' ? 'name-card' : 'clue-card');
+    el.dataset.index = card.index;
+    el.innerHTML = `
+      <div class="card-inner">
+        <div class="card-face card-back">
+          <span class="icon-back">🦎</span>
+          <span class="back-label">翻牌</span>
+        </div>
+        <div class="card-face card-front">
+          ${card.type === 'name'
+            ? `<span class="card-type-tag">${NAME_TAG}</span><div class="item-name">${item.name}</div>`
+            : `<span class="card-type-tag">${CLUE_TAG}</span><div class="clue-text">${item.clue}</div>`
+          }
+        </div>
+      </div>`;
+    el.addEventListener('click', () => onCardClick(card.index));
+    grid.appendChild(el);
+  });
+}
+
+function initGame() {
+  cards = buildCards(); flippedCards = []; matchedCount = 0; isLocked = false;
+  updateProgress();
+  document.getElementById('info-area').innerHTML =
+    '<div class="info-placeholder">配對成功後<br>這裡會顯示<br>動物的詳細資訊</div>';
+  renderGrid();
+}
+
+function onCardClick(index) {
+  if (isLocked) return;
+  const card = cards[index];
+  if (card.isFlipped || card.isMatched || flippedCards.length === 2) return;
+  card.isFlipped = true;
+  flippedCards.push(card);
+  updateCardEl(index);
+  if (flippedCards.length === 2) { isLocked = true; setTimeout(checkMatch, 1000); }
+}
+
+function updateCardEl(index) {
+  const card = cards[index];
+  const el = document.querySelector(`[data-index="${index}"]`);
+  if (!el) return;
+  el.classList.toggle('flipped', card.isFlipped && !card.isMatched);
+  el.classList.toggle('matched', card.isMatched);
+}
+
+function checkMatch() {
+  const [a, b] = flippedCards;
+  const isMatch = (a.itemId === b.itemId) && (a.type !== b.type);
+  if (isMatch) {
+    a.isMatched = b.isMatched = true;
+    a.isFlipped = b.isFlipped = false;
+    updateCardEl(a.index); updateCardEl(b.index);
+    matchedCount++;
+    updateProgress();
+    showInfo(a.itemId);
+    if (matchedCount === activeItems.length) setTimeout(showCompletion, 600);
+  } else {
+    a.isFlipped = b.isFlipped = false;
+    updateCardEl(a.index); updateCardEl(b.index);
+  }
+  flippedCards = []; isLocked = false;
+}
+
+function updateProgress() {
+  document.getElementById('progress-text').textContent = `${matchedCount} / ${activeItems.length}`;
+  document.getElementById('progress-fill').style.width =
+    activeItems.length ? `${(matchedCount / activeItems.length) * 100}%` : '0%';
+}
+
+function showInfo(itemId) {
+  const item = activeItems.find(p => p.id === itemId);
+  const area = document.getElementById('info-area');
+  if (area.querySelector('.info-placeholder')) {
+    area.innerHTML = '<div class="matched-list" id="matched-list"></div>';
+  }
+  const list = document.getElementById('matched-list');
+  const el = document.createElement('div');
+  el.className = 'info-card';
+  el.innerHTML = `
+    <div class="ic-name">${item.name}</div>
+    ${item.extra ? `<span class="ic-tag">${EXTRA_LABEL}：${item.extra}</span>` : ''}
+    <div class="ic-body">${item.detail}</div>`;
+  list.insertBefore(el, list.firstChild);
+}
+
+function showCompletion() {
+  const cfg = LEVEL_CONFIG[currentPairCount];
+  document.getElementById('completion-subtitle').textContent =
+    `${cfg.label}完成！你認識了 ${activeItems.length} 種台灣外來入侵動物`;
+  document.getElementById('completion-items').innerHTML =
+    activeItems.map(p => `<span>${p.name}</span>`).join('');
+  document.getElementById('overlay').classList.add('show');
+}
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+  document.getElementById('overlay').classList.remove('show');
+  activeItems = shuffle([...ALL_ITEMS]).slice(0, currentPairCount);
+  initGame();
+});
+document.getElementById('btn-level-select').addEventListener('click', goToLevelSelect);
+</script>
+</body>
+</html>
